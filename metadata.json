@@ -1,0 +1,6 @@
+{
+  "name": "Multi-Model AI Chat",
+  "description": "An exquisite multi-model client for NVIDIA NIM and OpenRouter free models.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
