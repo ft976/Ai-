@@ -36,6 +36,9 @@ class ChatViewModel(private val repository: ChatRepository) : ViewModel() {
     private val _openRouterValidationStatus = MutableStateFlow("")
     val openRouterValidationStatus: StateFlow<String> = _openRouterValidationStatus.asStateFlow()
 
+    private val _geminiValidationStatus = MutableStateFlow("")
+    val geminiValidationStatus: StateFlow<String> = _geminiValidationStatus.asStateFlow()
+
     // Query filters for Models List screen
     private val _modelsSearchQuery = MutableStateFlow("")
     val modelsSearchQuery: StateFlow<String> = _modelsSearchQuery.asStateFlow()
@@ -184,12 +187,13 @@ class ChatViewModel(private val repository: ChatRepository) : ViewModel() {
         }
     }
 
-    fun saveApiKeys(nvidia: String, openRouter: String) {
+    fun saveApiKeys(nvidia: String, openRouter: String, gemini: String) {
         viewModelScope.launch {
             val current = settings.value
             val updated = current.copy(
                 nvidiaKey = nvidia.trim(),
-                openRouterKey = openRouter.trim()
+                openRouterKey = openRouter.trim(),
+                geminiKey = gemini.trim()
             )
             repository.saveSettings(updated)
         }
@@ -237,6 +241,27 @@ class ChatViewModel(private val repository: ChatRepository) : ViewModel() {
         }
     }
 
+    fun validateAndSaveGeminiKey(key: String) {
+        val trimmedKey = key.trim()
+        if (trimmedKey.isBlank()) {
+            _geminiValidationStatus.value = "Failed: Key string cannot be blank."
+            return
+        }
+        _geminiValidationStatus.value = "Checking..."
+        viewModelScope.launch {
+            val res = repository.validateApiKey("Google", trimmedKey)
+            if (res.isSuccess) {
+                _geminiValidationStatus.value = "✔ Verified & Saved Locally"
+                val current = repository.getSettings()
+                val updated = current.copy(geminiKey = trimmedKey)
+                repository.saveSettings(updated)
+            } else {
+                val err = res.exceptionOrNull()?.message ?: "Validation failed"
+                _geminiValidationStatus.value = "❌ $err"
+            }
+        }
+    }
+
     fun clearNvidiaKey() {
         _nvidiaValidationStatus.value = ""
         viewModelScope.launch {
@@ -251,6 +276,15 @@ class ChatViewModel(private val repository: ChatRepository) : ViewModel() {
         viewModelScope.launch {
             val current = repository.getSettings()
             val updated = current.copy(openRouterKey = "")
+            repository.saveSettings(updated)
+        }
+    }
+
+    fun clearGeminiKey() {
+        _geminiValidationStatus.value = ""
+        viewModelScope.launch {
+            val current = repository.getSettings()
+            val updated = current.copy(geminiKey = "")
             repository.saveSettings(updated)
         }
     }

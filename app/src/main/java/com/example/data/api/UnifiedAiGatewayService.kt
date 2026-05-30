@@ -25,6 +25,7 @@ class UnifiedAiGatewayService(
         selectedModel: AiModel,
         nvidiaKey: String,
         openRouterKey: String,
+        geminiKey: String,
         preferredPlatform: String,
         temperature: Double = 0.7,
         maxTokens: Int = 2048
@@ -33,13 +34,23 @@ class UnifiedAiGatewayService(
         val targetPlatform = when (selectedModel.platform) {
             "NVIDIA" -> "NVIDIA"
             "OpenRouter" -> "OpenRouter"
-            else -> preferredPlatform // default fallback for both
+            "Google" -> "Google"
+            else -> preferredPlatform // default fallback
         }
 
         // 2. Resolve credentials safely
-        val apiKey = if (targetPlatform == "NVIDIA") nvidiaKey else openRouterKey
+        val apiKey = when (targetPlatform) {
+            "NVIDIA" -> nvidiaKey
+            "Google" -> geminiKey
+            else -> openRouterKey
+        }
+        
         if (apiKey.isBlank()) {
-            val endpointLabel = if (targetPlatform == "NVIDIA") "NVIDIA NIM" else "OpenRouter"
+            val endpointLabel = when (targetPlatform) {
+                "NVIDIA" -> "NVIDIA NIM"
+                "Google" -> "Google Gemini"
+                else -> "OpenRouter"
+            }
             return GatewayResult.Error(
                 message = "The $endpointLabel key is missing. Please save standard keys or configure them in Settings.",
                 platform = targetPlatform
@@ -49,12 +60,16 @@ class UnifiedAiGatewayService(
         // 3. Map model identifiers for target gateway
         val modelApiId = when (targetPlatform) {
             "NVIDIA" -> if (selectedModel.defaultNvidiaId.isNotBlank()) selectedModel.defaultNvidiaId else selectedModel.id
+            "Google" -> selectedModel.id
             else -> if (selectedModel.defaultOpenRouterId.isNotBlank()) selectedModel.defaultOpenRouterId else selectedModel.id
         }
 
         // 4. Set platform URL
         val url = if (targetPlatform == "NVIDIA") {
             "https://integrate.api.nvidia.com/v1/chat/completions"
+        } else if (targetPlatform == "Google") {
+             val modelPart = if (modelApiId.startsWith("gemini-")) modelApiId else "gemini-3.5-flash"
+             "https://generativelanguage.googleapis.com/v1beta/models/$modelPart:generateContent?key=$apiKey"
         } else {
             "https://openrouter.ai/api/v1/chat/completions"
         }
@@ -73,28 +88,54 @@ class UnifiedAiGatewayService(
             max_tokens = maxTokens
         )
 
-        val authHeader = "Bearer $apiKey"
+        val authHeader = if (targetPlatform == "Google") "" else "Bearer $apiKey"
 
         // 6. Execute network transaction
         return try {
-            val response = apiService.getChatCompletion(
-                url = url,
-                authHeader = authHeader,
-                request = request
-            )
-
-            val content = response.choices?.firstOrNull()?.message?.content
-            if (content != null) {
-                GatewayResult.Success(
-                    text = content,
-                    mappedModelId = modelApiId,
-                    platform = targetPlatform
-                )
+            if (targetPlatform == "Google") {
+                // For Google, we must use Gemini format. Since ApiClient has OpenAi compatibility, this is tricky.
+                // Reformatting to simple OpenAI compat request to Gemini: Gemini does NOT natively support OpenAI format at v1beta.
+                // Wait! Since v1beta/openai/, Gemini supports OpenAI format!
+                // Let's change the URL!
+                 val urlOpenAIGemini = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+                 val response = apiService.getChatCompletion(
+                    url = urlOpenAIGemini,
+                    authHeader = "Bearer $apiKey",
+                    request = request
+                 )
+                 val content = response.choices?.firstOrNull()?.message?.content
+                 if (content != null) {
+                    GatewayResult.Success(
+                        text = content,
+                        mappedModelId = modelApiId,
+                        platform = targetPlatform
+                    )
+                 } else {
+                    GatewayResult.Error(
+                        message = "Received an empty chat completion payload from $targetPlatform gateway.",
+                        platform = targetPlatform
+                    )
+                 }
             } else {
-                GatewayResult.Error(
-                    message = "Received an empty chat completion payload from $targetPlatform NIM gateway.",
-                    platform = targetPlatform
+                val response = apiService.getChatCompletion(
+                    url = url,
+                    authHeader = authHeader,
+                    request = request
                 )
+
+                val content = response.choices?.firstOrNull()?.message?.content
+                if (content != null) {
+                    GatewayResult.Success(
+                        text = content,
+                        mappedModelId = modelApiId,
+                        platform = targetPlatform
+                    )
+                } else {
+                    GatewayResult.Error(
+                        message = "Received an empty chat completion payload from $targetPlatform NIM gateway.",
+                        platform = targetPlatform
+                    )
+                }
             }
         } catch (e: retrofit2.HttpException) {
             val code = e.code()

@@ -8,6 +8,7 @@ data class SettingEntity(
     @PrimaryKey val id: String = "app_settings",
     val nvidiaKey: String = "",
     val openRouterKey: String = "",
+    val geminiKey: String = "",
     val currentModelId: String = "openrouter_free_auto",
     val currentPlatform: String = "OpenRouter", // "NVIDIA" or "OpenRouter"
     val customSystemPrompt: String = "You are a helpful, respectful, and highly intelligent AI assistant."

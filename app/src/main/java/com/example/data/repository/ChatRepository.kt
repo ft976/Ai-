@@ -26,7 +26,8 @@ class ChatRepository(
         entity?.let {
             it.copy(
                 nvidiaKey = EncryptionUtils.decrypt(it.nvidiaKey),
-                openRouterKey = EncryptionUtils.decrypt(it.openRouterKey)
+                openRouterKey = EncryptionUtils.decrypt(it.openRouterKey),
+                geminiKey = EncryptionUtils.decrypt(it.geminiKey)
             )
         }
     }
@@ -40,14 +41,16 @@ class ChatRepository(
         }
         return dbSettings.copy(
             nvidiaKey = EncryptionUtils.decrypt(dbSettings.nvidiaKey),
-            openRouterKey = EncryptionUtils.decrypt(dbSettings.openRouterKey)
+            openRouterKey = EncryptionUtils.decrypt(dbSettings.openRouterKey),
+            geminiKey = EncryptionUtils.decrypt(dbSettings.geminiKey)
         )
     }
 
     suspend fun saveSettings(settings: SettingEntity) {
         val encrypted = settings.copy(
             nvidiaKey = EncryptionUtils.encrypt(settings.nvidiaKey),
-            openRouterKey = EncryptionUtils.encrypt(settings.openRouterKey)
+            openRouterKey = EncryptionUtils.encrypt(settings.openRouterKey),
+            geminiKey = EncryptionUtils.encrypt(settings.geminiKey)
         )
         settingsDao.insertSettings(encrypted)
     }
@@ -74,16 +77,19 @@ class ChatRepository(
         chatDao.deleteAllSessions()
     }
 
-    suspend fun getEffectiveKeys(settings: SettingEntity): Pair<String, String> {
+    suspend fun getEffectiveKeys(settings: SettingEntity): Triple<String, String, String> {
         val envNvidia = try { BuildConfig.NVIDIA_API_KEY } catch (e: Exception) { "" }
         val envOpenRouter = try { BuildConfig.OPENROUTER_API_KEY } catch (e: Exception) { "" }
+        val envGemini = try { BuildConfig.GEMINI_API_KEY } catch (e: Exception) { "" }
 
         val nvidiaKey = if (settings.nvidiaKey.isNotBlank()) settings.nvidiaKey else envNvidia
         val openRouterKey = if (settings.openRouterKey.isNotBlank()) settings.openRouterKey else envOpenRouter
+        val geminiKey = if (settings.geminiKey.isNotBlank()) settings.geminiKey else envGemini
 
-        return Pair(
+        return Triple(
             if (isKeyValid(nvidiaKey, "MY_NVIDIA_API_KEY")) nvidiaKey else "",
-            if (isKeyValid(openRouterKey, "MY_OPENROUTER_API_KEY")) openRouterKey else ""
+            if (isKeyValid(openRouterKey, "MY_OPENROUTER_API_KEY")) openRouterKey else "",
+            if (isKeyValid(geminiKey, "MY_GEMINI_API_KEY")) geminiKey else ""
         )
     }
 
@@ -129,16 +135,25 @@ class ChatRepository(
             if (trimmedKey.length < 20) {
                 return Result.failure(Exception("Invalid key length: OpenRouter api key is too short."))
             }
+        } else if (platform == "Google") {
+            // Google Gemini Keys often start with AIza
+            if (trimmedKey.length < 20) {
+                return Result.failure(Exception("Invalid key length: Google API key is too short."))
+            }
         }
 
         val url = if (platform == "NVIDIA") {
             "https://integrate.api.nvidia.com/v1/chat/completions"
+        } else if (platform == "Google") {
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
         } else {
             "https://openrouter.ai/api/v1/chat/completions"
         }
         
         val testModel = if (platform == "NVIDIA") {
             "nvidia/nemotron-mini-4b-instruct"
+        } else if (platform == "Google") {
+            "gemini-3.5-flash"
         } else {
             "google/gemini-2.5-flash:free"
         }
@@ -203,8 +218,8 @@ class ChatRepository(
             com.example.data.api.ApiMessage(role = msg.role, content = msg.content)
         }
 
-        // Retrieve effective decrypted/env key for NVIDIA NIM and OpenRouter
-        val (nvidiaKey, openRouterKey) = getEffectiveKeys(settings)
+        // Retrieve effective decrypted/env key for NVIDIA NIM, OpenRouter, Gemini
+        val (nvidiaKey, openRouterKey, geminiKey) = getEffectiveKeys(settings)
 
         // Delegate to Unified AI Gateway Service
         val gatewayResult = ApiClient.gatewayService.routeAndExecute(
@@ -213,6 +228,7 @@ class ChatRepository(
             selectedModel = effectiveModel,
             nvidiaKey = nvidiaKey,
             openRouterKey = openRouterKey,
+            geminiKey = geminiKey,
             preferredPlatform = settings.currentPlatform
         )
 

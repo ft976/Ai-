@@ -1,6 +1,6 @@
 package com.example.data.local
 
-import java.util.Base64
+import android.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
 
@@ -20,7 +20,7 @@ object EncryptionUtils {
             val cipher = Cipher.getInstance(ALGORITHM)
             cipher.init(Cipher.ENCRYPT_MODE, keySpec)
             val encryptedBytes = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
-            Base64.getEncoder().encodeToString(encryptedBytes).trim()
+            Base64.encodeToString(encryptedBytes, Base64.NO_WRAP).trim()
         } catch (e: Exception) {
             e.printStackTrace()
             value
@@ -33,7 +33,7 @@ object EncryptionUtils {
             val keySpec = SecretKeySpec(KEY_BYTES, ALGORITHM)
             val cipher = Cipher.getInstance(ALGORITHM)
             cipher.init(Cipher.DECRYPT_MODE, keySpec)
-            val decodedBytes = Base64.getDecoder().decode(value)
+            val decodedBytes = Base64.decode(value, Base64.NO_WRAP)
             String(cipher.doFinal(decodedBytes), Charsets.UTF_8)
         } catch (e: Exception) {
             // Revert gracefully to original value if encryption cipher fails on plain old clear text
@@ -41,3 +41,4 @@ object EncryptionUtils {
         }
     }
 }
+

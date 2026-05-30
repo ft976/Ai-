@@ -885,7 +885,12 @@ fun ChatScreen(
                             ) {
                                 val isNvidiaKeyAdded = settings.nvidiaKey.isNotBlank()
                                 val isOpenRouterKeyAdded = settings.openRouterKey.isNotBlank()
-                                val isArmed = if (activeModel.platform == "NVIDIA") isNvidiaKeyAdded else isOpenRouterKeyAdded
+                                val isGeminiKeyAdded = settings.geminiKey.isNotBlank()
+                                val isArmed = when (activeModel.platform) {
+                                    "NVIDIA" -> isNvidiaKeyAdded
+                                    "Google" -> isGeminiKeyAdded
+                                    else -> isOpenRouterKeyAdded
+                                }
                                 
                                 Box(
                                     modifier = Modifier
@@ -2006,18 +2011,22 @@ fun SettingsScreen(viewModel: ChatViewModel) {
     val isGenerating by viewModel.isGenerating.collectAsStateWithLifecycle()
     val nvidiaStatus by viewModel.nvidiaValidationStatus.collectAsStateWithLifecycle()
     val openRouterStatus by viewModel.openRouterValidationStatus.collectAsStateWithLifecycle()
+    val geminiStatus by viewModel.geminiValidationStatus.collectAsStateWithLifecycle()
     
     var localNvidiaKey by remember { mutableStateOf("") }
     var localOpenRouterKey by remember { mutableStateOf("") }
+    var localGeminiKey by remember { mutableStateOf("") }
     var localSystemPrompt by remember { mutableStateOf("") }
     
     var showNvidiaKey by remember { mutableStateOf(false) }
     var showOpenRouterKey by remember { mutableStateOf(false) }
+    var showGeminiKey by remember { mutableStateOf(false) }
     
     // Seed initial local variables from database state flow
     LaunchedEffect(settings) {
         localNvidiaKey = settings.nvidiaKey
         localOpenRouterKey = settings.openRouterKey
+        localGeminiKey = settings.geminiKey
         localSystemPrompt = settings.customSystemPrompt
     }
     
@@ -2326,6 +2335,130 @@ fun SettingsScreen(viewModel: ChatViewModel) {
                         
                         Button(
                             onClick = { viewModel.validateAndSaveOpenRouterKey(localOpenRouterKey) },
+                            modifier = Modifier.height(32.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                        ) {
+                            Text("Verify & Save Key", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+                }
+                
+                Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                
+                // Google Gemini Credentials
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Google AI Studio Key", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                            Row(
+                                modifier = Modifier.clickable { uriHandler.openUri("https://aistudio.google.com/app/apikey") },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Launch,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "Get Gemini Key",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (settings.geminiKey.isNotBlank()) Color(0xFF00E676).copy(0.12f) else MaterialTheme.colorScheme.error.copy(0.12f),
+                            contentColor = if (settings.geminiKey.isNotBlank()) Color(0xFF00E676) else MaterialTheme.colorScheme.error
+                        ) {
+                            Text(
+                                if (settings.geminiKey.isNotBlank()) "AES-128 ENCRYPTED 🔒" else "EMPTY / BUILD FALLBACK",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    
+                    OutlinedTextField(
+                        value = localGeminiKey,
+                        onValueChange = { localGeminiKey = it },
+                        placeholder = { Text("AIza...", fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        textStyle = TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace),
+                        visualTransformation = if (showGeminiKey) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { showGeminiKey = !showGeminiKey }) {
+                                Icon(
+                                    imageVector = if (showGeminiKey) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                                    contentDescription = "Toggle Visibility",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        },
+                        singleLine = true
+                    )
+                    
+                    // Live validation status text row
+                    if (geminiStatus.isNotBlank()) {
+                        val isSuccess = geminiStatus.contains("Verified")
+                        val isChecking = geminiStatus.contains("Checking")
+                        val textColor = when {
+                            isSuccess -> Color(0xFF00C853)
+                            isChecking -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.error
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isSuccess) Icons.Filled.CheckCircle else if (isChecking) Icons.Filled.Refresh else Icons.Filled.Error,
+                                contentDescription = null,
+                                tint = textColor,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = geminiStatus,
+                                color = textColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (settings.geminiKey.isNotBlank()) {
+                            TextButton(
+                                onClick = {
+                                    localGeminiKey = ""
+                                    viewModel.clearGeminiKey()
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Text("Clear Key", color = MaterialTheme.colorScheme.error, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        
+                        Button(
+                            onClick = { viewModel.validateAndSaveGeminiKey(localGeminiKey) },
                             modifier = Modifier.height(32.dp),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
