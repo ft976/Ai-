@@ -131,7 +131,6 @@ fun AppMainLayout(viewModel: ChatViewModel) {
     }
     
     val isKeyboardVisible = WindowInsets.isImeVisible
-    var showAboutDeveloperDialog by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
     
@@ -180,7 +179,7 @@ fun AppMainLayout(viewModel: ChatViewModel) {
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "NVIDIA & OpenRouter Multitasking",
+                                text = "NVIDIA AI Platforms",
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -257,9 +256,9 @@ fun AppMainLayout(viewModel: ChatViewModel) {
                     NavigationDrawerItem(
                         icon = { Icon(Icons.Filled.Info, contentDescription = null) },
                         label = { Text("About Creator & Security", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
-                        selected = false,
+                        selected = currentScreen == ActiveScreen.ABOUT,
                         onClick = {
-                            showAboutDeveloperDialog = true
+                            viewModel.setScreen(ActiveScreen.ABOUT)
                             coroutineScope.launch { drawerState.close() }
                         },
                         colors = NavigationDrawerItemDefaults.colors(
@@ -475,14 +474,10 @@ fun AppMainLayout(viewModel: ChatViewModel) {
                     )
                     ActiveScreen.MODELS -> ModelsCatalogScreen(viewModel)
                     ActiveScreen.SETTINGS -> SettingsScreen(viewModel)
+                    ActiveScreen.ABOUT -> AboutAndDeveloperScreen()
                 }
             }
         }
-    }
-    
-    // About Creator & Security Dialog
-    if (showAboutDeveloperDialog) {
-        AboutAndDeveloperDialog(onDismiss = { showAboutDeveloperDialog = false })
     }
 
     // Master Delete Confirmation Dialog (applied cleanly everywhere!)
@@ -1217,15 +1212,6 @@ fun ChatScreen(
                 }
             }
             
-            // Specialist Specialty Controls Panel
-            if (!isKeyboardVisible) {
-                SpecialistModelDashboard(
-                    model = activeModel,
-                    inputText = inputText,
-                    onSetInputText = { viewModel.setInputText(it) }
-                )
-            }
-            
             // Input Controls View Bar
             Card(
                 modifier = Modifier
@@ -1612,85 +1598,8 @@ fun ModelsCatalogScreen(viewModel: ChatViewModel) {
     var selectedModelDetails by remember { mutableStateOf<AiModel?>(null) }
     var showCustomIdEditorForm by remember { mutableStateOf(false) }
     var customNvidiaIdString by remember { mutableStateOf("") }
-    var customOpenRouterIdString by remember { mutableStateOf("") }
     
     Column(modifier = Modifier.fillMaxSize()) {
-        // Horizontal Scroll Categories
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                // Search Input Field
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.setModelsSearchQuery(it) },
-                    placeholder = { Text("Filter 53 unique free LLMs...", fontSize = 13.sp) },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.setModelsSearchQuery("") }) {
-                                Icon(Icons.Filled.Clear, contentDescription = "Clear search", modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    textStyle = TextStyle(fontSize = 13.6.sp)
-                )
-                
-                Spacer(modifier = Modifier.height(10.dp))
-                
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(categories) { category ->
-                        val selected = activeCategory == category
-                        val selectedColor = when (category) {
-                            "All" -> com.example.ui.theme.EmeraldPrimary
-                            "Coding" -> com.example.ui.theme.NeonPurple
-                            "Reasoning" -> com.example.ui.theme.NeonCyan
-                            "Vision" -> com.example.ui.theme.AmberVibe
-                            "Voice" -> com.example.ui.theme.PinkPulse
-                            "Translation" -> com.example.ui.theme.EmeraldPrimaryDark
-                            else -> MaterialTheme.colorScheme.primary
-                        }
-                        
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(
-                                    if (selected) selectedColor
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                )
-                                .border(
-                                    width = 1.dp,
-                                    color = if (selected) Color.Transparent
-                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f),
-                                    shape = RoundedCornerShape(10.dp)
-                                )
-                                .clickable { viewModel.setCategoryFilter(category) }
-                                .padding(horizontal = 14.dp, vertical = 7.dp)
-                        ) {
-                            Text(
-                                text = category,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selected) {
-                                    if (category == "Coding" || category == "Voice" || category == "All") Color.Black else Color.Black
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        
         // Models List View
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (filteredModels.isEmpty()) {
@@ -1728,7 +1637,6 @@ fun ModelsCatalogScreen(viewModel: ChatViewModel) {
                                 .clickable {
                                     selectedModelDetails = model
                                     customNvidiaIdString = model.defaultNvidiaId
-                                    customOpenRouterIdString = model.defaultOpenRouterId
                                 },
                             border = BorderStroke(
                                 width = if (isActive) 1.5.dp else 1.dp,
@@ -2109,7 +2017,10 @@ fun SettingsScreen(viewModel: ChatViewModel) {
                             Text("NVIDIA NIM AI Key", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                             Row(
-                                modifier = Modifier.clickable { uriHandler.openUri("https://build.nvidia.com") },
+                                modifier = Modifier.clickable { 
+                                    try { uriHandler.openUri("https://build.nvidia.com") } 
+                                    catch (e: Exception) { e.printStackTrace() }
+                                },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
@@ -2222,130 +2133,6 @@ fun SettingsScreen(viewModel: ChatViewModel) {
                 
                 Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 
-                // OpenRouter Credentials
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("OpenRouter AI Key", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
-                            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                            Row(
-                                modifier = Modifier.clickable { uriHandler.openUri("https://openrouter.ai/keys") },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Launch,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(10.dp)
-                                )
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text(
-                                    text = "Get OpenRouter Key",
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = if (settings.openRouterKey.isNotBlank()) Color(0xFF00E676).copy(0.12f) else MaterialTheme.colorScheme.error.copy(0.12f),
-                            contentColor = if (settings.openRouterKey.isNotBlank()) Color(0xFF00E676) else MaterialTheme.colorScheme.error
-                        ) {
-                            Text(
-                                if (settings.openRouterKey.isNotBlank()) "AES-128 ENCRYPTED 🔒" else "EMPTY / BUILD FALLBACK",
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Black,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    
-                    OutlinedTextField(
-                        value = localOpenRouterKey,
-                        onValueChange = { localOpenRouterKey = it },
-                        placeholder = { Text("sk-or-...", fontSize = 12.sp) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        textStyle = TextStyle(fontSize = 12.sp, fontFamily = FontFamily.Monospace),
-                        visualTransformation = if (showOpenRouterKey) VisualTransformation.None else PasswordVisualTransformation(),
-                        trailingIcon = {
-                            IconButton(onClick = { showOpenRouterKey = !showOpenRouterKey }) {
-                                Icon(
-                                    imageVector = if (showOpenRouterKey) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                    contentDescription = "Toggle Visibility",
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        },
-                        singleLine = true
-                    )
-                    
-                    // Live validation status text row
-                    if (openRouterStatus.isNotBlank()) {
-                        val isSuccess = openRouterStatus.contains("Verified")
-                        val isChecking = openRouterStatus.contains("Checking")
-                        val textColor = when {
-                            isSuccess -> Color(0xFF00C853)
-                            isChecking -> MaterialTheme.colorScheme.primary
-                            else -> MaterialTheme.colorScheme.error
-                        }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (isSuccess) Icons.Filled.CheckCircle else if (isChecking) Icons.Filled.Refresh else Icons.Filled.Error,
-                                contentDescription = null,
-                                tint = textColor,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = openRouterStatus,
-                                color = textColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (settings.openRouterKey.isNotBlank()) {
-                            TextButton(
-                                onClick = {
-                                    localOpenRouterKey = ""
-                                    viewModel.clearOpenRouterKey()
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) {
-                                Text("Clear Key", color = MaterialTheme.colorScheme.error, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        
-                        Button(
-                            onClick = { viewModel.validateAndSaveOpenRouterKey(localOpenRouterKey) },
-                            modifier = Modifier.height(32.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                        ) {
-                            Text("Verify & Save Key", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-                        }
-                    }
-                }
-                
-                Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                
                 // Google Gemini Credentials
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(
@@ -2357,7 +2144,10 @@ fun SettingsScreen(viewModel: ChatViewModel) {
                             Text("Google AI Studio Key", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                             Row(
-                                modifier = Modifier.clickable { uriHandler.openUri("https://aistudio.google.com/app/apikey") },
+                                modifier = Modifier.clickable { 
+                                    try { uriHandler.openUri("https://aistudio.google.com/app/apikey") } 
+                                    catch (e: Exception) { e.printStackTrace() }
+                                },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
@@ -2465,56 +2255,6 @@ fun SettingsScreen(viewModel: ChatViewModel) {
                         ) {
                             Text("Verify & Save Key", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
                         }
-                    }
-                }
-            }
-        }
-        
-        // Multi-option models preference
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "Multi-Platform Routing Preference",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.5.sp
-                )
-                Text(
-                    "For models available on both NIM and OpenRouter (e.g. Qwen3 Coder, Llama 4, Nemotron 3), select your preferred server:",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(top = 2.dp, bottom = 12.dp),
-                    lineHeight = 15.sp
-                )
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    val pref = settings.currentPlatform
-                    Button(
-                        onClick = { viewModel.togglePlatformPreference("NVIDIA") },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (pref == "NVIDIA") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (pref == "NVIDIA") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Prefer NVIDIA NIM", fontSize = 11.5.sp, fontWeight = FontWeight.Black)
-                    }
-                    Button(
-                        onClick = { viewModel.togglePlatformPreference("OpenRouter") },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (pref == "OpenRouter") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (pref == "OpenRouter") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Text("Prefer OpenRouter", fontSize = 11.5.sp, fontWeight = FontWeight.Black)
                     }
                 }
             }
@@ -3094,272 +2834,268 @@ fun SpecialistModelDashboard(
 }
 
 @Composable
-fun AboutAndDeveloperDialog(
-    onDismiss: () -> Unit
-) {
+fun AboutAndDeveloperScreen() {
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            Button(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Dismiss Docs", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            }
-        },
-        title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Text(
-                    text = "Intel Vault & Security",
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        },
-        text = {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // Developer Card Section
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
-                        shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "CORE DEVELOPER INTEL",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Icon(
-                                        imageVector = Icons.Filled.AccountCircle,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                    Column {
-                                        Text(
-                                            text = "Rehan97",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 15.sp,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "GitHub: ft976",
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                                
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    // GitHub Button
-                                    IconButton(
-                                        onClick = { uriHandler.openUri("https://github.com/ft976") },
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Launch,
-                                            contentDescription = "GitHub",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                    
-                                    // LinkedIn Button
-                                    IconButton(
-                                        onClick = { 
-                                            uriHandler.openUri("https://www.linkedin.com/in/rehan-ahmad-863386382?utm_source=share_via&utm_content=profile&utm_medium=member_android") 
-                                        },
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Link,
-                                            contentDescription = "LinkedIn",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                // Quote Section
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.FormatQuote,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            
-                            Text(
-                                text = "gave it everything I had",
-                                fontSize = 12.sp,
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "\"And man will have nothing except what he strives for\"",
-                                fontSize = 13.sp,
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                            Text(
-                                text = "53:39",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Black,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "doing my part. the rest is His",
-                                fontSize = 12.sp,
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                fontWeight = FontWeight.Medium,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                
-                // Privacy and Security guardrails
-                item {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Intel Vault & Security",
+                fontWeight = FontWeight.ExtraBold,
+                fontSize = 22.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(bottom = 32.dp)
+        ) {
+            // Developer Card Section
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                ) {
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "PRIVACY & SECURITY PROTOCOLS",
+                            text = "CORE DEVELOPER INTEL",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.secondary
+                            color = MaterialTheme.colorScheme.primary
                         )
                         
-                        // Guardrail 1
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(
-                                imageVector = Icons.Filled.Lock,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp).padding(top = 2.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = "AES-128 JCE Scheme",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(
+                                    imageVector = Icons.Filled.AccountCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(28.dp)
                                 )
-                                Text(
-                                    text = "All API keys are encrypted at-rest using standardized native cryptors inside sandboxed local SQLite space. Zero unencrypted tokens touch disk.",
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Column {
+                                    Text(
+                                        text = "Rehan97",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "GitHub: ft976",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                        }
-                        
-                        // Guardrail 2
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(
-                                imageVector = Icons.Filled.Security,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp).padding(top = 2.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = "Direct-to-API Gateway",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "This application opens secure SSL connections directly to Nvidia NIM and OpenRouter endpoints. There are no middleman reverse proxies of any kind.",
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        
-                        // Guardrail 3
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(
-                                imageVector = Icons.Filled.VerifiedUser,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp).padding(top = 2.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = "No Background Telemetry",
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Chat history is fully offline-first. No logs represent, collect, or upload your prompt contents or response bodies to tracking servers.",
-                                    fontSize = 10.5.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                // GitHub Button
+                                IconButton(
+                                    onClick = { 
+                                        try { uriHandler.openUri("https://github.com/ft976") } 
+                                        catch (e: Exception) { e.printStackTrace() }
+                                    },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Launch,
+                                        contentDescription = "GitHub",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                
+                                // LinkedIn Button
+                                IconButton(
+                                    onClick = { 
+                                        try { uriHandler.openUri("https://www.linkedin.com/in/rehan-ahmad-863386382?utm_source=share_via&utm_content=profile&utm_medium=member_android") } 
+                                        catch (e: Exception) { e.printStackTrace() }
+                                    },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Link,
+                                        contentDescription = "LinkedIn",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-        },
-        shape = RoundedCornerShape(20.dp),
-        tonalElevation = 6.dp
-    )
+            
+            // Quote Section
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.FormatQuote,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        
+                        Text(
+                            text = "gave it everything I had",
+                            fontSize = 12.sp,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "\"And man will have nothing except what he strives for\"",
+                            fontSize = 13.sp,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        Text(
+                            text = "53:39",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "doing my part. the rest is His",
+                            fontSize = 12.sp,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            
+            // Privacy and Security guardrails
+            item {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                ) {
+                    Text(
+                        text = "PRIVACY & SECURITY PROTOCOLS",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    
+                    // Guardrail 1
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            imageVector = Icons.Filled.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "AES-128 JCE Scheme",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "All API keys are encrypted at-rest using standardized native cryptors inside local SQLite space.",
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    // Guardrail 2
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            imageVector = Icons.Filled.Security,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "Direct-to-API Gateway",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "This application opens secure SSL connections directly to API endpoints without middleman servers.",
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    // Guardrail 3
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            imageVector = Icons.Filled.VerifiedUser,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp).padding(top = 2.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "No Background Telemetry",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Chat history is fully offline-first. No logs collect or upload your prompt to tracking servers.",
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

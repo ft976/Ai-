@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 enum class ActiveScreen {
-    CHAT, MODELS, SETTINGS
+    CHAT, MODELS, SETTINGS, ABOUT
 }
 
 class ChatViewModel(private val repository: ChatRepository) : ViewModel() {

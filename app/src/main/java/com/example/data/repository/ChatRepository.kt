@@ -140,20 +140,30 @@ class ChatRepository(
             if (trimmedKey.length < 20) {
                 return Result.failure(Exception("Invalid key length: Google API key is too short."))
             }
+            // For Google, securely test using the GET /models endpoint
+            return try {
+                val url = "https://generativelanguage.googleapis.com/v1beta/models?key=$trimmedKey"
+                val response = ApiClient.service.listModels(url, "")
+                if (response.isSuccessful) {
+                    Result.success(true)
+                } else {
+                    val code = response.code()
+                    if (code == 400) Result.failure(Exception("Invalid key status reported by Google (HTTP $code)."))
+                    else Result.failure(Exception("Unauthorized: The Google API key is incorrect or expired."))
+                }
+            } catch (e: Exception) {
+                Result.failure(Exception("Connection failed: ${e.message}"))
+            }
         }
 
         val url = if (platform == "NVIDIA") {
             "https://integrate.api.nvidia.com/v1/chat/completions"
-        } else if (platform == "Google") {
-            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
         } else {
             "https://openrouter.ai/api/v1/chat/completions"
         }
         
         val testModel = if (platform == "NVIDIA") {
             "nvidia/nemotron-mini-4b-instruct"
-        } else if (platform == "Google") {
-            "gemini-3.5-flash"
         } else {
             "google/gemini-2.5-flash:free"
         }

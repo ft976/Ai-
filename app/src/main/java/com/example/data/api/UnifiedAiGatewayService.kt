@@ -68,7 +68,7 @@ class UnifiedAiGatewayService(
         val url = if (targetPlatform == "NVIDIA") {
             "https://integrate.api.nvidia.com/v1/chat/completions"
         } else if (targetPlatform == "Google") {
-             val modelPart = if (modelApiId.startsWith("gemini-")) modelApiId else "gemini-3.5-flash"
+             val modelPart = if (modelApiId.startsWith("gemini-")) modelApiId else "gemini-1.5-flash"
              "https://generativelanguage.googleapis.com/v1beta/models/$modelPart:generateContent?key=$apiKey"
         } else {
             "https://openrouter.ai/api/v1/chat/completions"
